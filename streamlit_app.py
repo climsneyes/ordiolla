@@ -2580,7 +2580,11 @@ def main():
                                 
                                 # 상위법령 내용 미리보기 (계층별 그룹화) - expander로 변경하여 재실행 방지
                                 with st.expander("🔍 조회된 상위법령 내용 미리보기 (계층별)", expanded=False):
+<<<<<<< HEAD
+                                    for idx, law_group in enumerate(superior_laws_content):
+=======
                                     for law_group in superior_laws_content:
+>>>>>>> f38780666b1b5c78c3feee47598b368e042ee423
                                         base_name = law_group['base_name']
 
                                         # 연결된 본문이 있는 경우
