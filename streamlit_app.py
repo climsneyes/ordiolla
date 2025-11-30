@@ -2891,7 +2891,7 @@ def main():
                                 comprehensive_analysis_results = None
 
                                 genai.configure(api_key=gemini_api_key)
-                                model = genai.GenerativeModel('gemini-2.5-flash-lite')
+                                model = genai.GenerativeModel('gemini-2.0-flash-lite')
 
                                 # 1차 분석용 프롬프트 (문제점 탐지 중심)
                                 # 검색된 판례 정보 가져오기
