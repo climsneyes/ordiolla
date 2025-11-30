@@ -2891,7 +2891,7 @@ def main():
                                 comprehensive_analysis_results = None
 
                                 genai.configure(api_key=gemini_api_key)
-                                model = genai.GenerativeModel('gemini-2.0-flash-lite')
+                                model = genai.GenerativeModel('gemini-2.5-flash-lite')
 
                                 # 1차 분석용 프롬프트 (문제점 탐지 중심)
                                 # 검색된 판례 정보 가져오기
@@ -3249,7 +3249,7 @@ def main():
                                 openai_prompt = create_analysis_prompt(pdf_text, search_results_for_analysis, superior_laws_content, relevant_guidelines, is_first_ordinance, comprehensive_analysis_results, theoretical_results)
                                 
                                 response = openai.ChatCompletion.create(
-                                    model="gpt-4",
+                                    model="gpt-4o-mini",
                                     messages=[
                                         {"role": "system", "content": "당신은 법률 전문가입니다. 조례 분석과 검토를 도와주세요."},
                                         {"role": "user", "content": openai_prompt}
