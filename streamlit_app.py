@@ -347,17 +347,62 @@ def call_ollama_cloud_api(prompt, model="gpt-oss:120b-cloud", max_chars=100000):
         original_len = len(prompt)
         if original_len > max_chars:
             st.warning(f"⚠️ 프롬프트가 너무 깁니다 ({original_len:,}자). {max_chars:,}자로 자동 축소합니다.")
-            # 핵심 부분을 유지하면서 축소
-            # 앞부분(지시사항 + 조례안)과 뒷부분(분석 요청)을 유지
-            front_chars = int(max_chars * 0.4)  # 앞부분 40%
-            back_chars = int(max_chars * 0.3)   # 뒷부분 30%
 
-            prompt = (
-                prompt[:front_chars] +
-                f"\n\n... [중략: 원본 {original_len:,}자 중 {original_len - max_chars:,}자 생략됨] ...\n\n" +
-                prompt[-back_chars:]
-            )
-            st.info(f"✅ 프롬프트를 {len(prompt):,}자로 축소했습니다.")
+            # 섹션 마커를 찾아서 지능형 축소
+            # 1. 법리적 가이드라인 (최우선 보존)
+            # 2. 검토 대상 조례 원문 (필수 보존)
+            # 3. 상위법령 (부분 축소 가능)
+            # 4. RAG 참고자료 (부분 축소 가능)
+            # 5. 분석 지시사항 (필수 보존)
+
+            try:
+                # 주요 섹션 경계 찾기
+                guideline_start = prompt.find("🚨 **필독: 조례 위법 판단")
+                ordinance_start = prompt.find("📄 **[검토 대상 조례 원문 시작]**")
+                ordinance_end = prompt.find("📄 **[검토 대상 조례 원문 종료]**")
+                reference_start = prompt.find("📚 **[참고자료:")
+                reference_end = prompt.find("📚 **[참고자료 종료]**")
+
+                # 필수 섹션 추출
+                guideline_section = prompt[guideline_start:ordinance_start] if guideline_start != -1 and ordinance_start != -1 else ""
+                ordinance_section = prompt[ordinance_start:ordinance_end + 100] if ordinance_start != -1 and ordinance_end != -1 else ""
+
+                # 조례 원문이 너무 길면 일부 축소 (앞부분 유지)
+                if len(ordinance_section) > max_chars * 0.5:
+                    ordinance_header = ordinance_section[:2000]  # 헤더 보존
+                    ordinance_content_limit = int(max_chars * 0.5) - 2000
+                    ordinance_section = ordinance_header + ordinance_section[2000:2000+ordinance_content_limit] + "\n\n... [조례 일부 생략] ...\n\n" + ordinance_section[-500:]
+
+                # 참고자료는 요약 (첫 5개 항목만)
+                reference_section = ""
+                if reference_start != -1 and reference_end != -1:
+                    ref_content = prompt[reference_start:reference_end + 100]
+                    # 참고자료 개수 제한
+                    ref_items = ref_content.split("[참고자료")
+                    if len(ref_items) > 6:  # 헤더 + 5개 항목
+                        reference_section = "[참고자료".join(ref_items[:6]) + "\n... [참고자료 일부 생략] ...\n📚 **[참고자료 종료]**\n" + "=" * 80
+                    else:
+                        reference_section = ref_content
+
+                # 분석 지시사항 (마지막 부분)
+                instruction_section = prompt[-int(max_chars * 0.15):]  # 마지막 15%
+
+                # 재조립
+                prompt = guideline_section + ordinance_section + reference_section + instruction_section
+
+                st.info(f"✅ 프롬프트를 {len(prompt):,}자로 축소했습니다 (필수 섹션 보존)")
+
+            except Exception as e:
+                # 섹션 파싱 실패 시 기존 방식 사용
+                st.warning(f"⚠️ 지능형 축소 실패, 단순 축소 적용: {str(e)}")
+                front_chars = int(max_chars * 0.5)  # 앞부분 50%
+                back_chars = int(max_chars * 0.3)   # 뒷부분 30%
+                prompt = (
+                    prompt[:front_chars] +
+                    f"\n\n... [중략: 원본 {original_len:,}자 중 {original_len - max_chars:,}자 생략됨] ...\n\n" +
+                    prompt[-back_chars:]
+                )
+                st.info(f"✅ 프롬프트를 {len(prompt):,}자로 축소했습니다.")
 
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -1540,8 +1585,7 @@ def create_analysis_prompt(pdf_text, search_results, superior_laws_content=None,
         "  1) 조례가 상위법의 명령·금지를 명백히 위반하는 경우\n"
         "  2) 주민의 권리를 제한하거나 의무를 부과하면서 법적 근거가 명확히 없는 경우\n"
         "  3) 자치사무가 아닌 국가사무를 침해하는 경우\n"
-        "- 그 외에는 '위법 가능성 있음'이라고 판단하지 않는다.\n"
-        "- **업로드된 조례 내용 외의 문구·요건·조항을 임의로 생성하거나 추가하여 판단하지 마라. 근거 없는 위법성 판단을 금지한다.**\n\n"
+        "- 그 외에는 '위법 가능성 있음'이라고 판단하지 않는다.\n\n"
         "---\n\n"
         "🚨 **중요 미션: 실제 위법 내용 찾기**\n"
         "너는 조례 위법성 전문 검토관이다. 일반적인 법리 설명이 아니라 **구체적인 위법 사항을 찾아내는 것**이 목표다.\n"
@@ -1551,10 +1595,17 @@ def create_analysis_prompt(pdf_text, search_results, superior_laws_content=None,
         "- ✅ '조례 제3조는 도로교통법 제12조와 이렇게 충돌한다'는 구체적 지적 필수\n"
         "- ✅ 의심스러운 부분도 반드시 언급 (단, 위 가이드라인 1~4를 준수하여 신중히 판단)\n"
         "- ✅ 위법이 없으면 '위법 사항 없음'으로 명확히 결론\n\n"
-        "아래는 내가 업로드한 조례 PDF의 전체 내용이야.\n"
-        "---\n"
-        f"{pdf_text}\n"
-        "---\n"
+        "=" * 80 + "\n"
+        "📄 **[검토 대상 조례 원문 시작]**\n"
+        "=" * 80 + "\n"
+        "⚠️ **중요**: 아래 내용은 내가 업로드한 조례 PDF의 전체 내용이다.\n"
+        "이 조례의 위법성을 검토하는 것이 당신의 임무이다.\n"
+        "이 조례 이후에 제공되는 '참고자료', '가이드라인', '판례' 등은 모두 위법 판단의 근거일 뿐,\n"
+        "검토 대상 조례 본문이 아니다. 절대 혼동하지 말 것.\n\n"
+        f"{pdf_text}\n\n"
+        "=" * 80 + "\n"
+        "📄 **[검토 대상 조례 원문 종료]**\n"
+        "=" * 80 + "\n\n"
     )
     
     # 상위법령 내용 추가 (계층별 그룹화)
@@ -1613,9 +1664,16 @@ def create_analysis_prompt(pdf_text, search_results, superior_laws_content=None,
     
     # 자치법규 가이드라인 및 사례 추가
     if relevant_guidelines:
-        prompt += "\n그리고 아래는 자치법규 관련 자료에서 검색된 관련 내용이야.\n"
-        prompt += "**중요**: 소관사무의 원칙, 법률유보의 원칙, 법령우위의 원칙 등 부분에 있어 조금이라도 문제가 될 것 같은 부분이 있다면,\n"
-        prompt += "아래 자료에 수록된 예전에 문제가 되었던 사례와 검토 기준을 자세히 참조해서 보고서를 작성해줘.\n"
+        prompt += "\n" + "=" * 80 + "\n"
+        prompt += "📚 **[참고자료: 자치법규 가이드라인 및 위법 판단 기준]**\n"
+        prompt += "=" * 80 + "\n"
+        prompt += "⚠️ **중요 주의사항**: 아래 내용은 위법성 판단을 위한 **참고자료일 뿐**이다.\n"
+        prompt += "**이것은 검토 대상 조례가 아니다.** 위에서 제시한 [검토 대상 조례 원문]과 혼동하지 말 것.\n"
+        prompt += "아래는 자치법규 매뉴얼, 예전 위법 사례, 판례 등에서 검색된 관련 내용으로,\n"
+        prompt += "위 조례의 위법성을 판단할 때 **근거 자료로만 활용**하라.\n\n"
+        prompt += "**활용 방법**: 소관사무의 원칙, 법률유보의 원칙, 법령우위의 원칙 등 부분에 있어\n"
+        prompt += "위 조례에서 조금이라도 문제가 될 것 같은 부분이 있다면,\n"
+        prompt += "아래 자료에 수록된 예전에 문제가 되었던 사례와 검토 기준을 참조하여 판단하라.\n"
         prompt += "---\n"
         
         # 소스별로 그룹화하여 표시
@@ -1627,12 +1685,14 @@ def create_analysis_prompt(pdf_text, search_results, superior_laws_content=None,
             source_groups[source_store].append(guideline)
         
         for source_store, guidelines in source_groups.items():
-            prompt += f"◆ 참고자료: {source_store}\n"
+            prompt += f"◆ 참고자료 출처: {source_store}\n"
             for i, guideline in enumerate(guidelines):
                 similarity_score = guideline.get('similarity', 1-guideline.get('distance', 0))
-                prompt += f"  [{i+1}] (유사도: {similarity_score:.3f})\n"
+                prompt += f"  [참고자료 {i+1}] (유사도: {similarity_score:.3f})\n"
                 prompt += f"  {guideline['text']}\n\n"
         prompt += "---\n"
+        prompt += "📚 **[참고자료 종료]**\n"
+        prompt += "=" * 80 + "\n\n"
     
     # 종합 위법성 판례 분석 결과 추가
     if comprehensive_analysis_results and isinstance(comprehensive_analysis_results, list) and len(comprehensive_analysis_results) > 0:
