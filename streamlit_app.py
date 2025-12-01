@@ -362,15 +362,16 @@ def call_ollama_cloud_api(prompt, model="gpt-oss:120b-cloud", max_chars=100000):
                 ordinance_end = prompt.find("📄 **[검토 대상 조례 원문 종료]**")
                 reference_start = prompt.find("📚 **[참고자료:")
                 reference_end = prompt.find("📚 **[참고자료 종료]**")
+                analysis_instruction_start = prompt.find("아래 기준에 따라 분석해줘")
 
                 # 필수 섹션 추출
                 guideline_section = prompt[guideline_start:ordinance_start] if guideline_start != -1 and ordinance_start != -1 else ""
                 ordinance_section = prompt[ordinance_start:ordinance_end + 100] if ordinance_start != -1 and ordinance_end != -1 else ""
 
                 # 조례 원문이 너무 길면 일부 축소 (앞부분 유지)
-                if len(ordinance_section) > max_chars * 0.5:
+                if len(ordinance_section) > max_chars * 0.4:
                     ordinance_header = ordinance_section[:2000]  # 헤더 보존
-                    ordinance_content_limit = int(max_chars * 0.5) - 2000
+                    ordinance_content_limit = int(max_chars * 0.4) - 2000
                     ordinance_section = ordinance_header + ordinance_section[2000:2000+ordinance_content_limit] + "\n\n... [조례 일부 생략] ...\n\n" + ordinance_section[-500:]
 
                 # 참고자료는 요약 (첫 5개 항목만)
@@ -380,17 +381,31 @@ def call_ollama_cloud_api(prompt, model="gpt-oss:120b-cloud", max_chars=100000):
                     # 참고자료 개수 제한
                     ref_items = ref_content.split("[참고자료")
                     if len(ref_items) > 6:  # 헤더 + 5개 항목
-                        reference_section = "[참고자료".join(ref_items[:6]) + "\n... [참고자료 일부 생략] ...\n📚 **[참고자료 종료]**\n" + "=" * 80
+                        reference_section = "[참고자료".join(ref_items[:6]) + "\n\n... [참고자료 일부 생략 - 위법 판단 근거로만 사용] ...\n\n📚 **[참고자료 종료]**\n" + "=" * 80 + "\n"
                     else:
                         reference_section = ref_content
 
-                # 분석 지시사항 (마지막 부분)
-                instruction_section = prompt[-int(max_chars * 0.15):]  # 마지막 15%
+                # 분석 지시사항 (필수 완전 보존)
+                if analysis_instruction_start != -1:
+                    instruction_section = prompt[analysis_instruction_start:]  # 분석 지시사항 전체 보존
+                else:
+                    # 찾지 못하면 마지막 20% 보존 (안전장치)
+                    instruction_section = prompt[-int(max_chars * 0.2):]
+
+                # 중간 섹션 (상위법령, 타시도 조례) - 남은 공간만큼 할당
+                if ordinance_end != -1 and reference_start != -1:
+                    middle_section = prompt[ordinance_end + 100:reference_start]
+                    # 중간 섹션 크기 제한 (최대 20%)
+                    max_middle = int(max_chars * 0.2)
+                    if len(middle_section) > max_middle:
+                        middle_section = middle_section[:max_middle] + "\n\n... [상위법령/타시도 조례 일부 생략] ...\n\n"
+                else:
+                    middle_section = ""
 
                 # 재조립
-                prompt = guideline_section + ordinance_section + reference_section + instruction_section
+                prompt = guideline_section + ordinance_section + middle_section + reference_section + instruction_section
 
-                st.info(f"✅ 프롬프트를 {len(prompt):,}자로 축소했습니다 (필수 섹션 보존)")
+                st.info(f"✅ 프롬프트를 {len(prompt):,}자로 축소했습니다 (필수 섹션 보존: 법리 가이드라인, 조례 원문, 분석 지시사항)")
 
             except Exception as e:
                 # 섹션 파싱 실패 시 기존 방식 사용
@@ -1568,6 +1583,21 @@ def analyze_ordinance_vs_superior_laws(pdf_text, superior_laws_content):
 def create_analysis_prompt(pdf_text, search_results, superior_laws_content=None, relevant_guidelines=None, is_first_ordinance=False, comprehensive_analysis_results=None, theoretical_results=None):
     """분석 프롬프트 생성 함수"""
     prompt = (
+        "=" * 80 + "\n"
+        "⚠️ **최우선 지시사항: 검토 대상 조례 vs 참고자료 구분**\n"
+        "=" * 80 + "\n"
+        "당신은 조례 위법성 검토 전문가입니다.\n\n"
+        "**핵심 임무**:\n"
+        "1. [검토 대상 조례 원문] 섹션에 제시된 조례의 위법성을 검토\n"
+        "2. [참고자료] 섹션의 자치법규 가이드라인/판례는 **위법 판단의 근거 자료일 뿐**\n"
+        "3. **절대 참고자료를 검토 대상 조례로 착각하지 말 것**\n\n"
+        "**분석 결과 형식**:\n"
+        "- 반드시 아래 모든 섹션을 포함하여 답변:\n"
+        "  1. [비교분석 요약표(조문별)]\n"
+        "  2. [내 조례의 차별점 요약]\n"
+        "  3. [검토 시 유의사항] - a) 소관사무의 원칙, b) 법률유보의 원칙, c) 법령우위의 원칙\n"
+        "  4. [실무적 검토 포인트]\n\n"
+        "=" * 80 + "\n\n"
         "🚨 **필독: 조례 위법 판단 법리적 가이드라인 (최우선 준수 사항)**\n\n"
         "**1. 조례 위법 판단의 원칙**\n"
         "- 조례는 자치입법권에 따라 폭넓은 재량을 가지며, 법률과 상충하거나 주민의 권리를 침해하지 않는 이상 위법으로 보지 않는다.\n"
