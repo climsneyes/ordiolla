@@ -32,6 +32,19 @@ from gemini_file_search import (
     search_violation_cases_gemini,
     get_gemini_store_manager
 )
+st.set_page_config(
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Streamlit 기본 UI 숨기기
+hide_streamlit_style = """
+    <style>
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 # 페이지 설정
 st.set_page_config(
