@@ -1,0 +1,28 @@
+name: Wake Streamlit App
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Playwright
+        run: |
+          npm init -y
+          npm i playwright
+          npx playwright install --with-deps chromium
+
+      - name: Open app and click wake button if present
+        run: node .github/scripts/wake.js
+        env:
+          APP_URL: "https://busanlaw.streamlit.app"
