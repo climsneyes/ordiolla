@@ -1,6 +1,6 @@
 # Cloudtype / Docker 배포용 (Streamlit 앱만). 무거운 패키지 제외 — 5GB 이미지 제한
 # 로컬에서 벡터스토어·학습 스크립트까지 쓰려면: pip install -r requirements-full.txt
-# cache-bust: 4
+# cache-bust: 5
 
 streamlit>=1.28.0
 flask>=3.0.0

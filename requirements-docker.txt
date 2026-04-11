@@ -1,5 +1,5 @@
 # Dockerfile 전용 — 내용은 requirements.txt 와 동기화
-# cache-bust: 4
+# cache-bust: 5
 
 streamlit>=1.28.0
 flask>=3.0.0

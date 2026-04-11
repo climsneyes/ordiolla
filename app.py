@@ -32,9 +32,12 @@ h1{font-size:1.25rem;}
 <h1>Streamlit 앱은 gunicorn과 동시에 8080 포트를 쓸 수 없습니다</h1>
 <p>Cloudtype 대시보드에서 이 서비스의 <strong>시작 명령(Start Command)</strong>을 아래처럼 바꾼 뒤 <strong>재배포</strong>하세요.</p>
 <div class="box">
-<pre><code>streamlit run streamlit_app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true --browser.gatherUsageStats=false</code></pre>
+<p><strong>권장 (PORT 비어 있어도 동작):</strong></p>
+<pre><code>sh run_streamlit.sh</code></pre>
+<p><strong>또는 한 줄:</strong> (쉘이 $PORT 를 못 넣는 경우)</p>
+<pre><code>streamlit run streamlit_app.py --server.port=8080 --server.address=0.0.0.0 --server.headless=true --browser.gatherUsageStats=false</code></pre>
 </div>
-<p>포트 필드는 Cloudtype에 안내된 값(보통 8080)과 맞추면 됩니다. 변경 후에는 gunicorn 대신 Streamlit만 실행됩니다.</p>
+<p>환경 변수에 <code>STREAMLIT_SERVER_PORT</code> 가 빈 값으로 있으면 같은 오류가 납니다. 비어 있다면 삭제하거나 위 스크립트처럼 유효한 포트로 덮어쓰세요.</p>
 </body>
 </html>"""
 

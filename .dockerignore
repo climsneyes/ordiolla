@@ -6,5 +6,6 @@
 !gemini_file_search.py
 !app.py
 !Procfile
+!run_streamlit.sh
 !requirements-docker.txt
 !requirements.txt
