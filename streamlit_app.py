@@ -178,6 +178,14 @@ if 'use_ollama_cloud' not in st.session_state:
 if 'ollama_api_key' not in st.session_state:
     st.session_state.ollama_api_key = _env_or_secret("OLLAMA_API_KEY", "")
 
+# Cloudtype 등 환경 변수로 주입 (고급 설정 입력란과 동일 키 사용)
+if "gemini_api_key_input" not in st.session_state:
+    st.session_state.gemini_api_key_input = (
+        _env_or_secret("GEMINI_API_KEY", "") or _env_or_secret("GOOGLE_API_KEY", "")
+    )
+if "openai_api_key_input" not in st.session_state:
+    st.session_state.openai_api_key_input = _env_or_secret("OPENAI_API_KEY", "")
+
 # RAG 벡터스토어 관련 session state
 if 'rag_vectorstores' not in st.session_state:
     st.session_state.rag_vectorstores = None
@@ -2283,8 +2291,21 @@ def main():
         # 고급 설정 (선택적)
         with st.expander("⚙️ 고급 설정 (선택사항)", expanded=False):
             st.markdown("**추가 AI 서비스** (선택적으로 사용)")
-            gemini_api_key = st.text_input("Gemini API 키", type="password", help="Google AI Studio에서 발급받은 API 키를 입력하세요 (선택사항)")
-            openai_api_key = st.text_input("OpenAI API 키", type="password", help="OpenAI 플랫폼에서 발급받은 API 키를 입력하세요 (선택사항)")
+            st.caption("배포 시 Cloudtype 환경 변수 `GEMINI_API_KEY` 또는 `GOOGLE_API_KEY`, `OPENAI_API_KEY`로도 설정할 수 있습니다.")
+            st.text_input(
+                "Gemini API 키",
+                type="password",
+                key="gemini_api_key_input",
+                help="Google AI Studio 키. 환경 변수 GEMINI_API_KEY 또는 GOOGLE_API_KEY와 동일하면 자동 반영됩니다.",
+            )
+            st.text_input(
+                "OpenAI API 키",
+                type="password",
+                key="openai_api_key_input",
+                help="OpenAI API 키. 환경 변수 OPENAI_API_KEY와 동일하면 자동 반영됩니다.",
+            )
+            gemini_api_key = st.session_state.gemini_api_key_input
+            openai_api_key = st.session_state.openai_api_key_input
 
             # Gemini File Search Store Manager 초기화
             if gemini_api_key and st.session_state.gemini_store_manager is None:
@@ -2310,12 +2331,6 @@ def main():
                     st.success("✅ Gemini File Search 활성화됨")
                 else:
                     st.warning("⚠️ Gemini API 키를 먼저 입력해주세요")
-
-        # 기본값 설정 (expander 외부)
-        if 'gemini_api_key' not in dir():
-            gemini_api_key = ""
-        if 'openai_api_key' not in dir():
-            openai_api_key = ""
 
         st.header("ℹ️ 서비스 안내")
         st.markdown("""
