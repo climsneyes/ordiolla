@@ -3,8 +3,10 @@ FROM python:3.11-slim
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV PIP_DEFAULT_TIMEOUT=120
 
-COPY requirements.txt .
+# 배포용은 requirements-docker.txt 사용 (torch/sentence-transformers 제외로 빌드 실패 방지)
+COPY requirements-docker.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
