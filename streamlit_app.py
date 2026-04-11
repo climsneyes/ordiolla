@@ -18,7 +18,6 @@ import base64
 import numpy as np
 import hashlib
 from typing import Dict, List
-from sklearn.metrics.pairwise import cosine_similarity
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
