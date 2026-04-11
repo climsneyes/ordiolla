@@ -1,7 +1,8 @@
 # Dockerfile 전용 — 내용은 requirements.txt 와 동기화
-# cache-bust: 3
+# cache-bust: 4
 
 streamlit>=1.28.0
+flask>=3.0.0
 requests>=2.31.0
 python-docx>=0.8.11
 PyPDF2>=3.0.0
