@@ -1,5 +1,5 @@
-# Cloudtype/Docker 배포용 — streamlit_app.py + gemini_file_search.py 실행에 필요한 최소 패키지
-# (sentence-transformers·torch·pandas·lxml 제외 — 빌드 메모리·시간 절약)
+# Dockerfile 전용 — 내용은 requirements.txt 와 동기화
+# cache-bust: 3
 
 streamlit>=1.28.0
 requests>=2.31.0

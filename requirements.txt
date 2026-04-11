@@ -1,35 +1,14 @@
-# 최적화된 조례 위법성 분석 시스템 - 필수 패키지
+# Cloudtype / Docker 배포용 (Streamlit 앱만). 무거운 패키지 제외 — 5GB 이미지 제한
+# 로컬에서 벡터스토어·학습 스크립트까지 쓰려면: pip install -r requirements-full.txt
+# cache-bust: 3
 
-# 웹 인터페이스
 streamlit>=1.28.0
-
-# 텍스트 임베딩 및 유사도 계산
-sentence-transformers>=2.2.2
-
-# 기본 데이터 처리
-numpy>=1.24.0
-pandas>=2.0.0
-
-# HTTP 요청 (국가법령정보센터 API)
 requests>=2.31.0
-
-# XML 파싱 (API 응답 처리)
-lxml>=4.9.0
-
-# 문서 처리
 python-docx>=0.8.11
 PyPDF2>=3.0.0
-
-# AI/ML 라이브러리
 google-generativeai>=0.3.0
 openai>=1.3.0
-
-# 선택적 패키지 (성능 향상)
-scikit-learn>=1.3.0
-
-# 추가 유틸리티
+numpy>=1.24.0
+google-genai>=0.2.0
 tqdm>=4.65.0
 typing-extensions>=4.7.0
-
-# Gemini File Search API
-google-genai>=0.2.0
