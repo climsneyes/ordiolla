@@ -4,5 +4,7 @@
 *
 !streamlit_app.py
 !gemini_file_search.py
+!app.py
+!Procfile
 !requirements-docker.txt
 !requirements.txt
