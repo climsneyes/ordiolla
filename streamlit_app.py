@@ -31,6 +31,27 @@ from gemini_file_search import (
     search_violation_cases_gemini,
     get_gemini_store_manager
 )
+
+
+def _env_or_secret(key: str, default: str = "") -> str:
+    """secrets.toml 이 없는 배포(Cloudtype 등)에서는 환경 변수만 사용."""
+    v = os.environ.get(key)
+    if v is not None and v != "":
+        return v
+    try:
+        return st.secrets.get(key, default)
+    except Exception:
+        return default
+
+
+def _email_config_from_secrets() -> Dict:
+    try:
+        raw = st.secrets.get("email", {})
+        return dict(raw) if raw else {}
+    except Exception:
+        return {}
+
+
 st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
@@ -155,8 +176,7 @@ if 'gemini_store_manager' not in st.session_state:
 if 'use_ollama_cloud' not in st.session_state:
     st.session_state.use_ollama_cloud = True  # 기본값: Ollama Cloud 사용 (무료)
 if 'ollama_api_key' not in st.session_state:
-    # secrets에서 API 키 로드
-    st.session_state.ollama_api_key = st.secrets.get("OLLAMA_API_KEY", "")
+    st.session_state.ollama_api_key = _env_or_secret("OLLAMA_API_KEY", "")
 
 # RAG 벡터스토어 관련 session state
 if 'rag_vectorstores' not in st.session_state:
@@ -2175,8 +2195,7 @@ def create_comparison_document(pdf_text, search_results, analysis_results, super
 def send_error_report(subject, body, attachment_data=None, attachment_name=None):
     """이메일 전송 함수"""
     try:
-        # secrets에서 이메일 설정 로드
-        email_config = st.secrets.get("email", {})
+        email_config = _email_config_from_secrets()
         sender_email = email_config.get("sender_email")
         sender_password = email_config.get("sender_password")
         receiver_email = "lsh4676@korea.kr"
