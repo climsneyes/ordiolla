@@ -11,6 +11,41 @@ import google.generativeai as genai
 import re
 from dotenv import load_dotenv
 import os
+import time
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
+
+# Connection pool and retry configuration for law.go.kr API
+http_session = requests.Session()
+http_session.headers.update({
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+})
+
+retry_strategy = Retry(
+    total=5,
+    backoff_factor=1.5,
+    status_forcelist=[429, 500, 502, 503, 504],
+    raise_on_status=False
+)
+http_session.mount("http://", HTTPAdapter(max_retries=retry_strategy))
+http_session.mount("https://", HTTPAdapter(max_retries=retry_strategy))
+
+def request_get_with_retry(url, params=None, timeout=60):
+    """API 요청시 ConnectionResetError 등을 방지하기 위한 재시도 및 지연(throttling) 헬퍼"""
+    # 요청 간 0.15초 대기하여 API 서버에 무리를 주지 않고 차단 방지
+    time.sleep(0.15)
+    for attempt in range(3):
+        try:
+            response = http_session.get(url, params=params, timeout=timeout)
+            response.raise_for_status()
+            return response
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, requests.exceptions.HTTPError, ConnectionResetError) as e:
+            if attempt == 2:
+                raise e
+            # 점진적으로 대기시간을 늘리며 재시도 (1.5초, 3.0초)
+            time.sleep((attempt + 1) * 1.5)
 
 load_dotenv()
 api_key = os.environ.get('GEMINI_API_KEY')
@@ -109,7 +144,7 @@ class LawSearchApp:
             'type': 'XML'
         }
         try:
-            response = requests.get(self.detail_url, params=params)
+            response = request_get_with_retry(self.detail_url, params=params)
             root = ET.fromstring(response.text)
             articles = []
             for article in root.findall('.//조'):
@@ -152,7 +187,7 @@ class LawSearchApp:
                 'org': org_code
             }
             try:
-                response = requests.get(self.search_url, params=params)
+                response = request_get_with_retry(self.search_url, params=params)
                 root = ET.fromstring(response.text)
                 total_laws = len(root.findall('.//law'))
                 if total_laws > 0:
@@ -257,7 +292,7 @@ class LawSearchApp:
                 'org': org_code
             }
             try:
-                response = requests.get(self.search_url, params=params)
+                response = request_get_with_retry(self.search_url, params=params)
                 root = ET.fromstring(response.text)
                 for law in root.findall('.//law'):
                     ordinance_name = law.find('자치법규명').text if law.find('자치법규명') is not None else ""
@@ -488,7 +523,7 @@ class LawSearchApp:
             }
             print(f"[DEBUG] lawSearch 요청 URL: {search_url}")
             print(f"[DEBUG] lawSearch 요청 파라미터: {search_params}")
-            search_resp = requests.get(search_url, params=search_params)
+            search_resp = request_get_with_retry(search_url, params=search_params)
             print(f"[DEBUG] lawSearch 응답코드: {search_resp.status_code}")
             print(f"[DEBUG] lawSearch 응답 본문(앞 1000자): {search_resp.text[:1000]}")
             search_root = ET.fromstring(search_resp.text)
@@ -513,7 +548,7 @@ class LawSearchApp:
             }
             print(f"[DEBUG] lawService 요청 URL: {detail_url}")
             print(f"[DEBUG] lawService 요청 파라미터: {detail_params}")
-            detail_resp = requests.get(detail_url, params=detail_params)
+            detail_resp = request_get_with_retry(detail_url, params=detail_params)
             print(f"[DEBUG] lawService 응답코드: {detail_resp.status_code}")
             print(f"[DEBUG] lawService 응답 본문(앞 1000자): {detail_resp.text[:1000]}")
             detail_root = ET.fromstring(detail_resp.text)

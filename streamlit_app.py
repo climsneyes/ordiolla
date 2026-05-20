@@ -23,6 +23,41 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
+import time
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
+
+# Connection pool and retry configuration for law.go.kr API
+http_session = requests.Session()
+http_session.headers.update({
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+})
+
+retry_strategy = Retry(
+    total=5,
+    backoff_factor=1.5,
+    status_forcelist=[429, 500, 502, 503, 504],
+    raise_on_status=False
+)
+http_session.mount("http://", HTTPAdapter(max_retries=retry_strategy))
+http_session.mount("https://", HTTPAdapter(max_retries=retry_strategy))
+
+def request_get_with_retry(url, params=None, timeout=60):
+    """API 요청시 ConnectionResetError 등을 방지하기 위한 재시도 및 지연(throttling) 헬퍼"""
+    # 요청 간 0.15초 대기하여 API 서버에 무리를 주지 않고 차단 방지
+    time.sleep(0.15)
+    for attempt in range(3):
+        try:
+            response = http_session.get(url, params=params, timeout=timeout)
+            response.raise_for_status()
+            return response
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, requests.exceptions.HTTPError, ConnectionResetError) as e:
+            if attempt == 2:
+                raise e
+            # 점진적으로 대기시간을 늘리며 재시도 (1.5초, 3.0초)
+            time.sleep((attempt + 1) * 1.5)
 
 # Gemini File Search 통합
 from gemini_file_search import (
@@ -514,7 +549,7 @@ def get_ordinance_detail(ordinance_id):
         'type': 'XML'
     }
     try:
-        response = requests.get(detail_url, params=params, timeout=60)
+        response = request_get_with_retry(detail_url, params=params, timeout=60)
         root = ET.fromstring(response.text)
         articles = []
         for article in root.findall('.//조'):
@@ -559,7 +594,7 @@ def search_ordinances(query):
                 'org': org_code
             }
             
-            response = requests.get(search_url, params=params, timeout=60)
+            response = request_get_with_retry(search_url, params=params, timeout=60)
             response.raise_for_status()
             
             root = ET.fromstring(response.text)
@@ -783,7 +818,7 @@ def get_superior_law_content_xml(law_name):
             'display': 10  # 더 많은 결과 검색
         }
         
-        search_response = requests.get(search_url, params=search_params, timeout=30)
+        search_response = request_get_with_retry(search_url, params=search_params, timeout=30)
         if search_response.status_code != 200:
             return get_superior_law_content_xml_fallback(law_name)
         
@@ -891,7 +926,7 @@ def get_superior_law_content_xml(law_name):
             'ID': law_id
         }
         
-        detail_response = requests.get(detail_url, params=detail_params, timeout=30)
+        detail_response = request_get_with_retry(detail_url, params=detail_params, timeout=30)
         if detail_response.status_code != 200:
             return get_superior_law_content_xml_fallback(law_name)
 
@@ -1016,7 +1051,7 @@ def get_superior_law_content_xml_fallback(law_name):
             'search': 1
         }
 
-        search_response = requests.get(search_url, params=search_params, timeout=30)
+        search_response = request_get_with_retry(search_url, params=search_params, timeout=30)
         
         if search_response.status_code != 200:
             return None
@@ -1051,7 +1086,7 @@ def get_superior_law_content_xml_fallback(law_name):
             'type': 'XML'
         }
         
-        detail_response = requests.get(detail_url, params=detail_params, timeout=30)
+        detail_response = request_get_with_retry(detail_url, params=detail_params, timeout=30)
         detail_root = ET.fromstring(detail_response.text)
         
         articles = []
@@ -2412,11 +2447,15 @@ def main():
             with col1:
                 if st.button("✅ 전체 선택", key="select_all_btn"):
                     st.session_state.selected_ordinances = list(range(len(results)))
+                    for idx in range(len(results)):
+                        st.session_state[f"ordinance_checkbox_{idx}"] = True
                     st.rerun()
             
             with col2:
                 if st.button("❌ 전체 해제", key="deselect_all_btn"):
                     st.session_state.selected_ordinances = []
+                    for idx in range(len(results)):
+                        st.session_state[f"ordinance_checkbox_{idx}"] = False
                     st.rerun()
             
             with col3:
